@@ -1,104 +1,108 @@
-import logging
+#!/usr/bin/env python
+# pylint: disable=unused-argument
+# This program is dedicated to the public domain under the CC0 license.
+
+"""
+Basic example for a bot that works with polls. Only 3 people are allowed to interact with each
+poll/quiz the bot generates. The preview command generates a closed poll/quiz, exactly like the
+one the user sends the bot
+"""
 import asyncio
-from telegram import Update
-from telegram.ext import Application, CommandHandler, CallbackContext, PollAnswerHandler
+import logging
+from time import time
+from telegram import (
+    KeyboardButton,
+    KeyboardButtonPollType,
+    Poll,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    Update,
+)
+from telegram.constants import ParseMode
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    PollAnswerHandler,
+    PollHandler,
+    filters,
+)
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+# set higher logging level for httpx to avoid all GET and POST requests being logged
+logging.getLogger("httpx").setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
-# Define your bot token here
-BOT_TOKEN = '1250677312:AAGvNeYI6Mn6w4MmJCgn_0IXpIrKCjgtYPY'
 
-# Dictionary to store message IDs to delete
-message_store = {}
-
-async def start(update: Update, context: CallbackContext):
-    """Send a message when the command /start is issued."""
-    await update.message.reply_text('Hi! Use /send <user_id> <message> to send a message. Use /delete to delete the latest message sent.')
-
-async def delete_message_after_delay(bot, chat_id, message_id, delay):
-    """Delete a message after a delay."""
-    await asyncio.sleep(delay)
-    if chat_id in message_store and message_store[chat_id] == message_id:
-        await bot.delete_message(chat_id=chat_id, message_id=message_id)
-        del message_store[chat_id]
-
-async def send_message(update: Update, context: CallbackContext):
-    """Send a message to a specific user and delete it after 10 seconds."""
+async def create_poll(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id, question, options, wait_period) -> None:
+    """Sends a predefined poll"""
+    print(wait_period, type(wait_period))
+    message = await context.bot.send_poll(
+        chat_id,
+        question,
+        options,
+        is_anonymous=False,
+        allows_multiple_answers = False,
+        close_date = time() + wait_period
+    )
+    # Save some info about the poll the bot_data for later use in receive_poll_answer
+    payload = {
+        message.poll.id: {
+            "message_id": message.message_id,
+            "chat_id": update.effective_chat.id,
+        }
+    }
+    context.bot_data.update(payload)
+    return message.poll.id
+async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    print(context.bot_data)
+    """Summarize a users poll vote"""
+    answer = update.poll_answer
     try:
-        user_id = int(context.args[0])
-        message_text = ' '.join(context.args[1:])
-        bot = context.bot
-        message = await bot.send_message(chat_id=user_id, text=message_text)
-        
-        # Store the message ID to delete it later
-        message_store[user_id] = message.message_id
+        answered_poll = context.bot_data[answer.poll_id]
+    except KeyError:
+        return
+    context.bot_data[answer.poll_id]["answer"] = answer.option_ids[0]
+    return answer.option_ids[0]
 
-        # Schedule message deletion
-        asyncio.create_task(delete_message_after_delay(bot, user_id, message.message_id, 10))
-        
-        await update.message.reply_text('Message sent and will be deleted after 10 seconds.')
-    except (IndexError, ValueError):
-        await update.message.reply_text('Usage: /send <user_id> <message>')
-
-async def delete_message(update: Update, context: CallbackContext):
-    """Delete the last message sent to the user."""
-    user_id = update.message.chat_id
-    bot = context.bot
-    if user_id in message_store:
-        message_id = message_store[user_id]
-        await bot.delete_message(chat_id=user_id, message_id=message_id)
-        del message_store[user_id]
-        await update.message.reply_text('Message deleted.')
-    else:
-        await update.message.reply_text('No message to delete.')
-
-async def error(update: Update, context: CallbackContext):
-    """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, context.error)
-
-from datetime import datetime, timedelta
-
-async def create_poll(update: Update, context: CallbackContext):
-    """Create a poll with a close period."""
-    question = "What is your favorite color?"
-    options = ["Red", "Blue", "Green"]
+async def create_poll_and_get_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id, question, options, wait_period) -> None:
+    # Get answer by handling create_poll and receive_poll_answer
+    poll_id = await create_poll(update, context, chat_id, question, options, wait_period)
+    current_time = 0
+    while current_time <= wait_period:
+        try:
+            answer = context.bot_data[poll_id]["answer"]
+            context.bot_data.pop(poll_id)
+            return answer
+        except:
+            pass
+        await asyncio.sleep(0.5)
+        current_time += 0.5
+    context.bot_data.pop(poll_id)
+    return -1
     
-    # Calculate the close date
-    close_date = datetime.utcnow() + timedelta(minutes=1)  # Close after 1 minute
-    
-    poll_message = await context.bot.send_poll(update.message.chat_id, question, options, is_anonymous=False, open_period=0, close_date=close_date)
-    await update.message.reply_text(f"Poll created with ID: {poll_message.message_id}")
+async def _create_poll_and_get_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    question = "What is the quesion?"
+    options = ["Nothing", "Really Nothing", "Are you sure"]
+    wait_period = 10
+    asyncio.create_task(create_poll_and_get_answer(update, context, update.effective_chat.id, question, options, wait_period))
+def main() -> None:
+    """Run bot."""
+    # Create the Application and pass it your bot's token.
+    application = Application.builder().token("1250677312:AAGvNeYI6Mn6w4MmJCgn_0IXpIrKCjgtYPY").build()
+    #application.add_handler(CommandHandler("start", start))
+    #application.add_handler(CommandHandler("poll", create_poll))
+    application.add_handler(CommandHandler("poll", _create_poll_and_get_answer))
+    application.add_handler(PollAnswerHandler(receive_poll_answer))
 
-    print("KKKK", context)
-    # Handle poll answers
-    #async def poll_answer(update: Update, context: CallbackContext):
-    #    if update.poll_answer.poll_id == poll_message.poll.id:
-    #        logger.info(f"Answer: {update.poll_answer.option_ids}")
-
-    #dispatcher = context.dispatcher
-    #dispatcher.add_handler(PollAnswerHandler(poll_answer))
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
-def main():
-    """Start the bot."""
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    # on different commands - answer in Telegram
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("send", send_message))
-    application.add_handler(CommandHandler("delete", delete_message))
-    application.add_handler(CommandHandler("createpoll", create_poll))
-
-    # log all errors
-    application.add_error_handler(error)
-
-    # Start the Bot
-    application.run_polling()
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
