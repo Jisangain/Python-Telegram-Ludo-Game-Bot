@@ -39,7 +39,14 @@ class game(object):
 		self.guti_can_be_moved = []
 
 	def status(self):
-		return [self.current_player, self.current_condition, self.position_self]
+		current_player = self.current_player
+		players = [current_player]
+		current_player = self.next_player(current_player)
+		while current_player != players[0]:
+			players.append(current_player)
+			current_player = self.next_player(current_player)
+		players.sort()
+		return [players, self.current_player, self.current_condition, self.position_self]
 	def dice(self, value):
 		if(self.dice_pending_moves and self.current_condition == self.dice_move):
 			if (value == 0): value = self.rand()
@@ -122,10 +129,16 @@ class game(object):
 			elif self.position_self[self.current_player][value] != 0 and self.position_self[self.current_player][value] <= 57:
 				self.dice_can_be_moved.append(dice_value)
 		return self.dice_can_be_moved
+	def avail_guti(self):
+		available = []
+		for guti in range(4):
+			available.append(self.can_move_by_guti(guti))
+		return available
 
 #a = game(2)
+#print(a.status())
 #a.dice(2)
-#print(a.status(),a.dice_got)
+#print(a.status(),a.avail_guti())
 #a.dice(2)
 #print(a.status())
 #print(a.status(),a.last_got_dice, a.dice_got, a.can_move_by_dice(2), a.can_move_by_dice(6),a.make_move(6,0),a.status())
