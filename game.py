@@ -135,10 +135,17 @@ class game(object):
 			available.append(self.can_move_by_guti(guti))
 		return available
 
-#a = game(2)
+"""a = game(2)
 #print(a.status())
-#a.dice(2)
+a.dice(5)
+a.avail_guti()
+a.dice(6)
+a.dice(5)
+a.avail_guti()
+a.can_move_by_dice(6)
+a.make_move(6,0)
+print(a.status())
 #print(a.status(),a.avail_guti())
 #a.dice(2)
 #print(a.status())
-#print(a.status(),a.last_got_dice, a.dice_got, a.can_move_by_dice(2), a.can_move_by_dice(6),a.make_move(6,0),a.status())
+#print(a.status(),a.last_got_dice, a.dice_got, a.can_move_by_dice(2), a.can_move_by_dice(6),a.make_move(6,0),a.status())"""

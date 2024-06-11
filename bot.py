@@ -94,11 +94,13 @@ async def create_button(update: Update, context: ContextTypes.DEFAULT_TYPE, chat
 async def receive_button_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    data = query.data
     try:
         if query.data == "rolled":
-            data = randint(5,6)
+            data = randint(1,6)
             context.bot_data[query.message.message_id]["delete"] = False
         context.bot_data[query.message.message_id]["answer"] = data
+        print("1",context.bot_data[query.message.message_id])
     except:
         return
     if query.data == "rolled":
@@ -175,7 +177,7 @@ async def run_game(update: Update, context: ContextTypes.DEFAULT_TYPE, players, 
             dice = await create_button_and_get_answer(update, context, players[status[1]//indexer], "Please select", keyboard, 10, True)
             tasks = []
             if dice == -1:
-                dice = randint(5,6) #hacks
+                dice = randint(1,6) #hacks
                 tasks.append(asyncio.create_task(context.bot.send_message(players[status[1]//indexer], f"Time out. Auto rolled, you have recieved {dice}")))
             tasks += [asyncio.create_task(context.bot.send_message(chat_id, f"Player {color[status[1]]} has got dice {dice}"))
                 for chat_id in players if chat_id != players[status[1]//indexer]]
@@ -185,15 +187,14 @@ async def run_game(update: Update, context: ContextTypes.DEFAULT_TYPE, players, 
         elif status[2] == 1: #move dice
             avail = game.avail_guti()
             keyboard = [[]]
-
             tasks = []
 
             for guti in range(4):
                 if len(avail[guti])>0:
                     last = guti
                     keyboard[0].append(InlineKeyboardButton(str(guti+1), callback_data = guti))
-            guti = await create_button_and_get_answer(update, context, players[status[1]//indexer], "Please select guti to move", keyboard, 10, True)
-            
+            guti = await create_button_and_get_answer(update, context, players[status[1]//indexer], f"Please select guti to move", keyboard, 10, True)
+            guti = int(guti)
             if guti == -1:
                 game.make_move(avail[last][0], last)
 
@@ -210,37 +211,37 @@ async def run_game(update: Update, context: ContextTypes.DEFAULT_TYPE, players, 
             else:
                 keyboard = [[],[]]
                 for dice in avail[guti]:
-                    keyboard[0].append(InlineKeyboardButton(str(guti), callback_data = dice))
-                keyboard[1].append([InlineKeyboardButton("Change guti", callback_data = "cng")])
+                    keyboard[0].append(InlineKeyboardButton(str(dice), callback_data = dice))
+                keyboard[1].append(InlineKeyboardButton("Change guti", callback_data = "cng"))
                 dice = await create_button_and_get_answer(update, context, players[status[1]//indexer], "Please select guti to move", keyboard, 10, True)
 
-                if dice == -1:
+                dice = int(dice)
+                guti = int(guti)
+
+                if dice == "cng":
+                    continue
+                elif dice == -1:
                     tasks = []
-                    game.make_move(avail[guti][0], guti)
-                    tasks.append(asyncio.create_task(context.bot.send_message(players[status[1]//indexer], f"Time out. The guti {guti} is moved by {avail[guti][0]}")))
+                    dice = int(avail[guti][0])
+
+                    tasks.append(asyncio.create_task(context.bot.send_message(players[status[1]//indexer], f"Time out. The guti {guti+1} is moved by {avail[guti][0]}")))
                     tasks += [asyncio.create_task(context.bot.send_message(chat_id, f"Player {color[status[1]]} moved a guti by {avail[guti][0]}"))
                         for chat_id in players if chat_id != players[status[1]//indexer]]
                     await asyncio.gather(*tasks)
 
-                    status = game.status()
-                    active_players = [players[x // indexer] for x in status[0]]
-                    files = board_genarator.generate2(status[3], status[0])
-                    await send_files(update, context, active_players, files)
-                    continue
-                elif dice == "cng":
-                    continue
                 else:
                     tasks = []
-                    game.make_move(dice, guti)
-                    tasks.append(asyncio.create_task(context.bot.send_message(players[status[1]//indexer], f"Time out. The guti {guti} is moved by {dice}")))
+                    tasks.append(asyncio.create_task(context.bot.send_message(players[status[1]//indexer], f"You moved the guti {guti+1} by {dice}")))
                     tasks += [asyncio.create_task(context.bot.send_message(chat_id, f"Player {color[status[1]]} moved a guti by {dice}"))
                         for chat_id in players if chat_id != players[status[1]//indexer]]
                     await asyncio.gather(*tasks)
-
-                    status = game.status()
-                    active_players = [players[x // indexer] for x in status[0]]
-                    files = board_genarator.generate2(status[3], status[0])
-                    await send_files(update, context, active_players, files)
+                
+                game.can_move_by_dice(dice) #have to remove this extra thing
+                game.make_move(dice, guti)
+                status = game.status()
+                active_players = [players[x // indexer] for x in status[0]]
+                files = board_genarator.generate2(status[3], status[0])
+                await send_files(update, context, active_players, files)
     return
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
