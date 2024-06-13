@@ -176,6 +176,7 @@ async def run_game(update: Update, context: ContextTypes.DEFAULT_TYPE, players, 
             ]
             dice = await create_button_and_get_answer(update, context, players[status[1]//indexer], "Please select", keyboard, 10, True)
             tasks = []
+            dice = int(dice)
             if dice == -1:
                 dice = randint(1,6) #hacks
                 tasks.append(asyncio.create_task(context.bot.send_message(players[status[1]//indexer], f"Time out. Auto rolled, you have recieved {dice}")))
@@ -193,6 +194,7 @@ async def run_game(update: Update, context: ContextTypes.DEFAULT_TYPE, players, 
                 if len(avail[guti])>0:
                     last = guti
                     keyboard[0].append(InlineKeyboardButton(str(guti+1), callback_data = guti))
+                    
             guti = await create_button_and_get_answer(update, context, players[status[1]//indexer], f"Please select guti to move", keyboard, 10, True)
             guti = int(guti)
             if guti == -1:
@@ -215,9 +217,10 @@ async def run_game(update: Update, context: ContextTypes.DEFAULT_TYPE, players, 
                 keyboard[1].append(InlineKeyboardButton("Change guti", callback_data = "cng"))
                 dice = await create_button_and_get_answer(update, context, players[status[1]//indexer], "Please select guti to move", keyboard, 10, True)
 
-                dice = int(dice)
+                if dice != "cng":       
+                    dice = int(dice)
                 guti = int(guti)
-
+                
                 if dice == "cng":
                     continue
                 elif dice == -1:
